@@ -6,21 +6,22 @@ import org.tkit.onecx.onecxbffgen.service.GeneratorService;
 import picocli.CommandLine;
 
 import java.nio.file.Path;
+import java.util.concurrent.Callable;
 
 @CommandLine.Command(
         name = "create-bff",
         mixinStandardHelpOptions = true,
         description = "Creates a OneCX BFF project from frontend/backend OpenAPI sources"
 )
-public class CreateBffCommand implements Runnable {
+public class CreateBffCommand implements Callable<Integer> {
 
-    @CommandLine.Option(names = { "--name", "--project-name" }, required = true, description = "Display project name")
+    @CommandLine.Option(names = { "--name", "--project-name" }, required = true, description = "Complete project name")
     String projectName;
 
     @CommandLine.Option(names = { "--group", "--group-id" }, defaultValue = "org.tkit.onecx", description = "Maven groupId")
     String groupId;
 
-    @CommandLine.Option(names = "--package", description = "Base Java package (if missing, derived from group + artifact)")
+    @CommandLine.Option(names = "--package", description = "Base Java package (used as-is; otherwise derived from group + artifact)")
     String packageName;
 
     @CommandLine.Option(names = "--artifact-id", description = "Maven artifactId (defaults to sanitized project name)")
@@ -50,7 +51,7 @@ public class CreateBffCommand implements Runnable {
     }
 
     @Override
-    public void run() {
+    public Integer call() {
         GenerateRequest request = new GenerateRequest(
                 projectName,
                 groupId,
@@ -66,8 +67,10 @@ public class CreateBffCommand implements Runnable {
         try {
             Path result = generatorService.generate(request);
             System.out.println("Generated BFF project in: " + result.toAbsolutePath());
+            return 0;
         } catch (Exception e) {
             System.err.println("Generation failed: " + e.getMessage());
+            return 1;
         }
     }
 }
