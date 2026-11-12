@@ -58,7 +58,7 @@ java -jar target/onecx-bff-generator-1.0.0-SNAPSHOT-runner.jar create-bff --help
 ### `create-bff` options
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--name` | Project name (used as artifact ID if `--artifact-id` not set) | required |
+| `--name` | Complete project name (used as artifact ID if `--artifact-id` not set) | required |
 | `--group` | Maven `groupId` | `org.tkit.onecx` |
 | `--package` | Base Java package (derived from `--group` + name if not set) | derived |
 | `--artifact-id` | Maven `artifactId` | same as `--name` |
@@ -72,69 +72,57 @@ Example with explicit token:
 
 ```bash
 java -jar target/onecx-bff-generator-1.0.0-SNAPSHOT-runner.jar create-bff \
-  --name onecx-demo-bff \
+  --name orders-bff \
   --group org.tkit.onecx \
-  --package org.tkit.onecx.demo \
   --frontend-api /path/to/frontend/openapi-bff.yaml \
   --backend-api /path/to/backend/openapi-svc-internal.yaml \
   --github-token ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
+
+`--name` and `--artifact-id` are complete identities; the generator does not add
+an organization prefix. For example, `orders-bff` derives the sibling backend
+service name `orders-svc`. To reproduce a previous prefixed identity, pass the
+prefix explicitly, such as `--name onecx-orders-bff`; custom prefixes such as
+`--name acme-orders-bff` are also used as given. The derived backend service
+name replaces only the terminal `-bff` suffix, so names without that suffix are
+rejected rather than guessed.
+
+`--backend-api` is the OpenAPI input location, not the runtime service URL.
+Local backend specs are copied into `openapi/clients/`; remote specs retain
+their supplied URL for Maven's build-time download.
+
+If `--package` is provided, it is used as the Java base package as-is. Otherwise
+the package is derived from the Maven group and artifact identity; the default
+group remains `org.tkit.onecx`.
 ---
 ## Generating a Project (from any location to any location)
 Use the absolute path to the JAR and provide absolute paths for the API specs and output directory:
 ```bash
 java -jar /home/Maciej/projects/onecx/onecx-bff-generator/target/onecx-bff-generator-1.0.0-SNAPSHOT-runner.jar \
   create-bff \
-  --name <project-name> \
+  --name orders-bff \
   --group org.tkit.onecx \
-  --package org.tkit.onecx.<domain> \
   --frontend-api /path/to/frontend/openapi-bff.yaml \
   --backend-api /path/to/backend/openapi-svc-internal.yaml \
   --output-dir /path/to/output \
   --autobuild
 ```
-### Example — regenerate `onecx-demo-bff` from local backend path
+### Example — regenerate `orders-bff` from a local backend path
 ```bash
 java -jar /home/Maciej/projects/onecx/onecx-bff-generator/target/onecx-bff-generator-1.0.0-SNAPSHOT-runner.jar \
   create-bff \
-  --name onecx-demo-bff \
+  --name orders-bff \
   --group org.tkit.onecx \
-  --package org.tkit.onecx.demo \
-  --frontend-api /home/Maciej/projects/onecx/onecx-demo-ui/demo/src/assets/api/openapi-bff.yaml \
-  --backend-api home/Maciej/projects/onecx/onecx-demo-svc/src/main/openapi/onecx-demo-svc-internal.yaml \
+  --frontend-api /path/to/orders-ui/src/assets/api/openapi-bff.yaml \
+  --backend-api /path/to/orders-svc/src/main/openapi/orders-svc-internal.yaml \
   --output-dir /home/Maciej/projects/onecx \
   --autobuild
 ```
 
-
-### Example — regenerate `onecx-demo-bff`
-```bash
-java -jar /home/Maciej/projects/onecx/onecx-bff-generator-official-repo/target/onecx-bff-generator-1.0.0-SNAPSHOT-runner.jar \
-  create-bff \
-  --name onecx-demo-bff \
-  --group org.tkit.onecx \
-  --package org.tkit.onecx.demo \
-  --frontend-api /home/Maciej/projects/onecx/onecx-demo-ui/demo/src/assets/api/openapi-bff.yaml \
-  --backend-api https://raw.githubusercontent.com/maciejkryger/onecx-demo-svc/refs/heads/main/src/main/openapi/onecx-demo-svc-internal.yaml \
-  --output-dir /home/Maciej/projects/onecx \
-  --autobuild
-```
-raw for develop branch: 
-```bash
-java -jar /home/Maciej/projects/onecx/onecx-bff-generator/target/onecx-bff-generator-1.0.0-SNAPSHOT-runner.jar \
-  create-bff \
-  --name onecx-demo-bff \
-  --group org.tkit.onecx \
-  --package org.tkit.onecx.demo \
-  --frontend-api /home/Maciej/projects/onecx/onecx-demo-ui/demo/src/assets/api/openapi-bff.yaml \
-  --backend-api https://raw.githubusercontent.com/maciejkryger/onecx-demo-svc/refs/heads/develop/src/main/openapi/onecx-demo-svc-internal.yaml \
-  --output-dir /home/Maciej/projects/onecx \
-  --autobuild
-```
 
 ---
 ## Generated Project Structure
-Given `--group org.tkit.onecx` and `--name onecx-demo-bff`, the base package is normalized to `org.tkit.onecx.demo.bff`.
+Given `--group org.tkit.onecx` and `--name orders-bff`, the derived base package is `org.tkit.onecx.orders.bff`.
 ```text
 <output-dir>/<artifact-id>/
   pom.xml
@@ -145,8 +133,8 @@ Given `--group org.tkit.onecx` and `--name onecx-demo-bff`, the base package is 
   src/main/helm/values.yaml
   src/main/docker/Dockerfile.jvm
   src/main/docker/Dockerfile.native
-  src/main/openapi/frontend/<original-filename>
-  src/main/openapi/backend/<original-filename>
+  src/main/openapi/<frontend-openapi-filename>
+  openapi/clients/<local-backend-openapi-file>
   src/main/java/.../rs/controllers/
   src/main/java/.../rs/mappers/
   src/test/java/.../rs/
