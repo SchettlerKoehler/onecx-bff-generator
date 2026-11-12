@@ -83,6 +83,7 @@ public class ProjectWriter {
                                      String groupId,
                                      String basePackage,
                                      String parentVersion,
+                                     boolean backendApiIsUrl,
                                      Map<String, List<OperationModel>> controllers) throws IOException {
         Map<String, String> values = new LinkedHashMap<>();
         values.put("projectName", projectName);
@@ -90,6 +91,9 @@ public class ProjectWriter {
         values.put("basePackage", basePackage);
         values.put("parentVersion", parentVersion);
         values.put("javaVersion", "25");
+        values.put("backendApiLocation", backendApiIsUrl
+                ? "downloaded during the Maven build into `target/tmp/openapi`"
+                : "copied to `openapi/clients/<original-file-name>`");
         values.put("curlExamples", buildCurlExamples(controllers));
         writeTemplate(projectDir.resolve("README.md"), "bff-project/README.md.tpl", values);
     }
@@ -103,7 +107,8 @@ public class ProjectWriter {
                                       boolean backendApiIsUrl,
                                       String dockerJvmVersion,
                                       String dockerNativeVersion,
-                                      String helmVersion) throws IOException {
+                                      String helmVersion,
+                                      String backendServiceName) throws IOException {
         Map<String, String> appValues = new LinkedHashMap<>();
         appValues.put("projectName", projectName);
         appValues.put("groupId", groupId);
@@ -111,7 +116,7 @@ public class ProjectWriter {
         appValues.put("backendSpecKey", toPropertyToken(backendFileName));
         appValues.put("backendClientBasePackage", "gen." + basePackage + ".client");
         appValues.put("backendConfigKey", BACKEND_CONFIG_KEY);
-        appValues.put("backendServiceName", deriveBackendServiceName(projectName));
+        appValues.put("backendServiceName", backendServiceName);
         // URL: download-maven-plugin downloads to target/tmp/openapi at build time
         // local file: already copied to openapi/clients/ (persisted in project)
         appValues.put("openApiInputBaseDir", backendApiIsUrl ? "target/tmp/openapi" : "openapi/clients");
@@ -142,19 +147,6 @@ public class ProjectWriter {
             // workflow templates are optional for tests / local generation
             System.err.println("GitHub actions generation failed: " + e.getMessage());
         }
-    }
-
-    /**
-     * Derives the helm event target repository from the project artifact name.
-     * Convention: strip "-bff" suffix and prepend "onecx/".
-     * e.g. "onecx-demo-bff" -> "onecx/onecx-demo"
-     */
-    private String deriveHelmRepo(String projectName) {
-        if (projectName == null) return null;
-        String base = projectName.endsWith("-bff")
-                ? projectName.substring(0, projectName.length() - 4)
-                : projectName;
-        return "onecx/" + base;
     }
 
     public void writeControllerClasses(Path projectDir,
@@ -835,7 +827,7 @@ public class ProjectWriter {
         return "resource";
     }
 
-    private String deriveBackendServiceName(String projectName) {
+    String deriveBackendServiceName(String projectName) {
         if (projectName == null || projectName.isBlank()) {
             throw new IllegalArgumentException("Project name must not be blank");
         }
@@ -850,18 +842,11 @@ public class ProjectWriter {
             throw new IllegalArgumentException("Could not derive backend service name from project name");
         }
 
-        if ("bff".equals(normalized)) {
-            return "svc";
-        }
-
         if (normalized.endsWith("-bff")) {
             return normalized.substring(0, normalized.length() - "-bff".length()) + "-svc";
         }
 
-        if (normalized.contains("-bff-")) {
-            return normalized.replace("-bff-", "-svc-");
-        }
-
-        return normalized + "-svc";
+        throw new IllegalArgumentException(
+                "Project name must end with '-bff' to derive its sibling SVC service name: " + projectName);
     }
 }

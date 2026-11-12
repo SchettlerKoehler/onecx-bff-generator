@@ -37,6 +37,7 @@ public class GeneratorService {
 
     public Path generate(GenerateRequest request) throws IOException, InterruptedException {
         String artifactId = sanitizeArtifactId(request);
+        String backendServiceName = projectWriter.deriveBackendServiceName(request.projectName());
         LatestVersionResolver.ResolvedVersion parentResolved = versionResolver.resolveLatestWithSource("onecx/onecx-quarkus3-parent", "3.1.0", request.githubToken());
         LatestVersionResolver.ResolvedVersion dockerJvmResolved = versionResolver.resolveLatestWithSource("onecx/docker-quarkus-jvm", "1.4.0", request.githubToken());
         LatestVersionResolver.ResolvedVersion dockerNativeResolved = versionResolver.resolveLatestWithSource("onecx/docker-quarkus-native", "1.4.0", request.githubToken());
@@ -83,9 +84,9 @@ public class GeneratorService {
         projectWriter.writeApplicationFiles(projectDir, request.projectName(), request.groupId(), basePackage,
                 artifactId,
                 backendFile.getFileName().toString(), backendIsUrl,
-                dockerJvmVersion, dockerNativeVersion, helmVersion);
+                dockerJvmVersion, dockerNativeVersion, helmVersion, backendServiceName);
         projectWriter.writeGeneratedReadme(projectDir, request.projectName(), request.groupId(), basePackage, parentVersion,
-                controllerSelection.controllers());
+                backendIsUrl, controllerSelection.controllers());
         projectWriter.writeControllerClasses(projectDir,
                 basePackage,
                 controllerSelection.controllers(),
@@ -97,7 +98,8 @@ public class GeneratorService {
         projectWriter.writeTestScaffold(projectDir, basePackage, artifactId, permissionKeys,
                 controllerSelection.controllers(), controllerSelection.backendClientByController());
         projectWriter.writeWorkflowFiles(projectDir, request.projectName());
-        writeGenerationReport(projectDir, request.projectName(), request.groupId(), basePackage, parentVersion,
+        writeGenerationReport(projectDir, request.projectName(), request.groupId(), artifactId, basePackage,
+                backendServiceName, parentVersion,
                 dockerJvmVersion, dockerNativeVersion, helmVersion,
                 frontendSchemas, backendSchemas, controllerSelection.controllers());
         System.out.println("Generated BFF '" + request.projectName() + "' in: " + projectDir.toAbsolutePath());
@@ -152,13 +154,10 @@ public class GeneratorService {
     }
 
     private String resolveBasePackage(GenerateRequest request, String artifactId) {
-        String candidate;
         if (request.packageName() != null && !request.packageName().isBlank()) {
-            candidate = request.packageName().trim();
-        } else {
-            candidate = deriveBasePackage(request.groupId(), artifactId);
+            return request.packageName().trim();
         }
-        return ensureBffPackage(candidate, artifactId);
+        return ensureBffPackage(deriveBasePackage(request.groupId(), artifactId), artifactId);
     }
 
     private String ensureBffPackage(String packageName, String artifactId) {
@@ -362,7 +361,9 @@ public class GeneratorService {
     private void writeGenerationReport(Path projectDir,
                                        String projectName,
                                        String groupId,
+                                       String artifactId,
                                        String basePackage,
+                                       String backendServiceName,
                                        String parentVersion,
                                        String dockerJvmVersion,
                                        String dockerNativeVersion,
@@ -374,7 +375,9 @@ public class GeneratorService {
                 {
                   "projectName": "%s",
                   "groupId": "%s",
+                  "artifactId": "%s",
                   "basePackage": "%s",
+                  "backendServiceName": "%s",
                   "parentVersion": "%s",
                   "dockerJvmVersion": "%s",
                   "dockerNativeVersion": "%s",
@@ -383,7 +386,7 @@ public class GeneratorService {
                   "backendSchemas": %d,
                   "controllers": %d
                 }
-                """.formatted(projectName, groupId, basePackage, parentVersion,
+                """.formatted(projectName, groupId, artifactId, basePackage, backendServiceName, parentVersion,
                 dockerJvmVersion, dockerNativeVersion, helmVersion, frontendSchemas.size(),
                 backendSchemas.size(), controllers.size());
         Files.writeString(projectDir.resolve("generation-report.json"), report);
